@@ -44,8 +44,20 @@ async function captureTab(tab) {
     await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func: () => {
-        const { showClipboardBar } = window.figma.__clipboardFlow('body');
-        showClipboardBar();
+        // Primary: patched-in clipboard-flow starter (shows the selection toolbar).
+        try {
+          const { showClipboardBar } = window.figma.__clipboardFlow('body');
+          showClipboardBar();
+          return;
+        } catch (e) {
+          console.warn('[figma-capture] __clipboardFlow unavailable, falling back to direct full-page capture:', e);
+        }
+        // Fallback: Figma's own public surface; captures the full page straight to the clipboard.
+        if (window.figma && typeof window.figma.captureForDesign === 'function') {
+          window.figma.captureForDesign({ selector: 'body' });
+        } else {
+          console.error('[figma-capture] no capture path available on this page');
+        }
       },
       world: 'MAIN'
     });
@@ -101,6 +113,10 @@ chrome.commands.onCommand.addListener(async (command) => {
 
 // 拦截剪贴板写入，修改 payload（字体修正 + DOM 扁平化，不改网页）
 function installFontInterceptor() {
+  // Font rewrite is OFF by default. It stamps every element that lacks an
+  // explicit fontFamily with 'Noto Sans SC' (a catch-all default-font branch,
+  // not just CJK handling), which changes non-Chinese text too. Set true to re-enable.
+  const FONT_FIX_ENABLED = false;
   const CJK_RE = /[\u4e00-\u9fff\u3400-\u4dbf\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]/;
   const ICON_RE = /Material|Symbol|Icon|FontAwesome|fa-/i;
   const SERIF_FONTS = new Set([
@@ -352,7 +368,7 @@ function installFontInterceptor() {
   // --- Transform pipeline ---
 
   function transformPayload(root) {
-    fixFont(root);
+    if (FONT_FIX_ENABLED) fixFont(root);
     // Multiple passes: cleanup may expose new flatten opportunities
     for (let i = 0; i < 3; i++) {
       cleanupNodes(root);

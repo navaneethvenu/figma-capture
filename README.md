@@ -56,3 +56,12 @@ This is an **unofficial community tool** for personal and educational use. It is
 ## License
 
 MIT
+
+## This fork (branch `toolbar-repair-font-default-off`)
+
+Two changes vs upstream:
+
+- **Toolbar repair against Figma's current capture script.** Upstream's Makefile sed bound `window.figma.__clipboardFlow` to a hardcoded minified name (`fn`) which is no longer the clipboard-flow starter in Figma's current capture.js, so the selection toolbar never appeared. The build now runs `patch-capture.mjs`: it locates the flow by its stable return shape (`{promise, showSuccess, showClipboardBar, done}` - property keys survive minification), binds `__clipboardFlow` to the correct function, and fails the build loudly if Figma's bundle changes shape. background.js also falls back to `figma.captureForDesign({selector: 'body'})` when the toolbar flow is unavailable, so capture degrades to full-page instead of a dead click.
+- **Font rewrite off by default.** `installFontInterceptor` stamped every element lacking an explicit fontFamily with 'Noto Sans SC' (a catch-all default-font branch, not just CJK handling), which rewrote non-Chinese text too. It now sits behind `FONT_FIX_ENABLED = false` in background.js; the DOM cleanup and wrapper-flattening passes still run.
+
+`capture.js` stays a build artifact fetched by `make` (gitignored) and is not committed.
